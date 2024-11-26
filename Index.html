@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Geolocation Information</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind-dark.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/i18next@21.0.0/i18next.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15/lodash.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --background-color: #262626;
+            --text-color: #C7C7C7;
+            --accent-color: #00EDCA;
+            --border-color: #00FFE4;
+            --neon-green: #1AFF00;
+            --neon-yellow: #EAFF00;
+            --neon-blue: #6400FF;
+            --neon-red: #FF0089;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: var(--text-color);
+        }
+
+        #info-container {
+            text-align: center;
+            font-family: 'Roboto', sans-serif;
+            font-size: 14px;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            width: 400px;
+            max-width: 100%;
+            display: none;
+            border: 4px solid transparent;
+            background-clip: padding-box;
+            animation: borderColorChange 5s linear infinite;
+        }
+
+        #map {
+            height: 250px;
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        img {
+            width: 50px;
+            height: auto;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+
+        strong {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        
+        h1 {
+            font-size: 70px;
+            font-weight: bold;
+            color: #08FFF9;
+            text-shadow: 0 0 10px #E108FF, 0 0 20px #FF088C, 0 0 30px #FB3EFF;
+            animation: glow 1.5s ease-in-out infinite alternate;
+            margin-bottom: 20px;
+        }
+
+        @keyframes glow {
+            0% {
+                text-shadow: 0 0 10px #CC0CFF, 0 0 20px #9F0CFF, 0 0 30px #FF0C64;
+            }
+            100% {
+                text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--neon-yellow), 0 0 60px var(--neon-blue);
+            }
+        }
+
+        #ipAddress {
+            font-size: 20px;
+            font-weight: bold;
+            color: #FFFF00;
+            text-shadow: 0 0 10px #08ECFF, 0 0 20px #0896FF, 0 0 30px #086CFF, 0 0 40px #2A08FF;
+        }
+
+        #loadingMessage {
+            text-align: center;
+            margin-bottom: 10px;
+            display: none; /* Initially hidden */
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            color: #855FFF;
+            font-size: 24px;
+        }
+
+        /* New spinner animation */
+        .spinner {
+            border: 10px solid rgba(255, 255, 255, 0.1);
+            border-top: 10px solid #00BEFF;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite, colorChange 2s infinite alternate;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes colorChange {
+            0% {
+                border-top-color: #00E5FF;
+            }
+            50% {
+                border-top-color: #FCFF00;
+            }
+            100% {
+                border-top-color: ##FF00B4;
+            }
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .label {
+            font-weight: bold;
+        }
+
+        .value {
+            font-weight: normal;
+            color: var(--text-color);
+        }
+
+        .powered-by {
+            color: var(--accent-color);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .powered-by:hover {
+            color: #FF5733;
+        }
+
+        @keyframes borderColorChange {
+            0% {
+                border-color: var(--neon-green);
+            }
+            25% {
+                border-color: var(--neon-yellow);
+            }
+            50% {
+                border-color: var(--neon-blue);
+            }
+            75% {
+                border-color: var(--neon-red);
+            }
+            100% {
+                border-color: var(--neon-green);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingMessage">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <div id="info-container">
+        <h1 class="text-2xl mb-4">Your IP Information</h1>
+        <img id="countryFlag" alt="Country Flag">
+        <p><strong>IP Address:</strong> <span id="ipAddress"></span></p>
+        <hr>
+        <div class="info-row">
+            <div class="label">
+                <strong>Country:</strong>
+            </div>
+            <div class="value" id="country"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>State/Province:</strong>
+            </div>
+            <div class="value" id="stateProv"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>City:</strong>
+            </div>
+            <div class="value" id="city"></div>
+        </div>
+        <hr>
+        <div class="info-row">
+            <div class="label">
+                <strong>Zip Code:</strong>
+            </div>
+            <div class="value" id="zipcode"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>Calling Code:</strong>
+            </div>
+            <div class="value" id="callingCode"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>Country Code :</strong>
+            </div>
+            <div class="value" id="countryCode2"></div>
+        </div>
+        <hr>
+        <div class="info-row">
+            <div class="label">
+                <strong>ISP:</strong>
+            </div>
+            <div class="value" id="isp"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>Organization:</strong>
+            </div>
+            <div class="value" id="organization"></div>
+        </div>
+        <div class="info-row">
+            <div class="label">
+                <strong>Local Time:</strong>
+            </div>
+            <div class="value" id="localTime"></div>
+        </div>
+        <hr>
+        <div id="map"></div>
+
+        <h2 class="mt-4">Network Protocols</h2>
+        <div class="info-row">
+            <div class="label"><strong>IPv4 Status:</strong></div>
+            <div class="value" id="ipv4Status">Checking IPv4...</div>
+        </div>
+        <div class="info-row">
+            <div class="label"><strong>IPv6 Status:</strong></div>
+            <div class="value" id="ipv6Status">Checking IPv6...</div>
+        </div>
+
+        <p class="mt-4"><a href="https://github.com/darknessm427" target="_blank" class="powered-by">ÐΛɌ₭ᑎΞ𐒡𐒡🗽𓄂𓆃</a></p>
+    </div>
+
+    <script>
+        const apiKey = '6cca95911a484b8a9ea7426acdd4ea37';
+        const apiUrl = `https://api.ipgeolocation.io/ipgeo?apiKey=${apiKey}`;
+
+        async function fetchIPInfo() {
+            try {
+                document.getElementById('loadingMessage').style.display = 'block'; // Show loading message
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error('Error fetching data.');
+                }
+
+                const data = await response.json();
+                updateUIWithData(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('loadingMessage').textContent = 'Error fetching data. Please try again.';
+            } finally {
+                document.getElementById('loadingMessage').style.display = 'none'; // Hide loading message after data is fetched
+            }
+        }
+
+        function updateUIWithData(data) {
+            document.getElementById('ipAddress').textContent = data.ip;
+            document.getElementById('countryFlag').src = data.country_flag;
+            document.getElementById('country').textContent = data.country_name;
+            document.getElementById('stateProv').textContent = data.state_prov;
+            document.getElementById('city').textContent = data.city;
+            document.getElementById('zipcode').textContent = data.zipcode;
+            document.getElementById('callingCode').textContent = data.calling_code;
+            document.getElementById('countryCode2').textContent = data.country_code2;
+            document.getElementById('isp').textContent = data.isp;
+            document.getElementById('organization').textContent = data.organization;
+            document.getElementById('localTime').textContent = new Date().toLocaleString("en-US", { timeZone: data.time_zone.name });
+
+            if (data.latitude && data.longitude) {
+                const map = L.map('map').setView([data.latitude, data.longitude], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                L.marker([data.latitude, data.longitude]).addTo(map).bindPopup(`<b>${data.city}</b>`).openPopup();
+            } else {
+                document.getElementById('map').innerHTML = 'No geographic location available for map display.';
+            }
+
+            document.getElementById('info-container').style.display = 'block';
+        }
+
+        async function checkIPv4() {
+            try {
+                const response = await fetch('https://ipv4.icanhazip.com/', { method: 'GET' });
+                if (response.ok) {
+                    document.getElementById('ipv4Status').textContent = 'IPv4 supported.';
+                } else {
+                    document.getElementById('ipv4Status').textContent = 'IPv4 not supported.';
+                }
+            } catch (error) {
+                document.getElementById('ipv4Status').textContent = 'IPv4 not supported.';
+            }
+        }
+
+        async function checkIPv6() {
+            try {
+                const response = await fetch('https://ipv6.icanhazip.com/', { method: 'GET' });
+                if (response.ok) {
+                    document.getElementById('ipv6Status').textContent = 'IPv6 supported.';
+                } else {
+                    document.getElementById('ipv6Status').textContent = 'IPv6 not supported.';
+                }
+            } catch (error) {
+                document.getElementById('ipv6Status').textContent = 'IPv6 not supported.';
+            }
+        }
+
+        checkIPv4();
+        checkIPv6();
+        fetchIPInfo();
+    </script>
+</body>
+</html>
